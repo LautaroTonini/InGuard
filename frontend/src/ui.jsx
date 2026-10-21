@@ -1,10 +1,12 @@
 import React, { useState } from 'react';
 import { Eye, EyeOff, ShieldCheck, X } from 'lucide-react';
+import logo from './src/assets/logo.png';
 
 export function Logo() {
   return <div className="brand">
     <div className="brand-mark"><ShieldCheck size={25} strokeWidth={2.3}/></div>
     <div><span className="brand-name">InGuard</span><span className="brand-tag">CUIDADO CONECTADO</span></div>
+    <img src={logo} alt="logo"/> 
   </div>;
 }
 
