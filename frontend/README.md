@@ -16,15 +16,17 @@ Abrí la URL de Vite (normalmente `http://localhost:5173`). Build de producción
 
 **Vista cuidador** (gestiona todo)
 - Pestaña **Mis pacientes**: elegir a quién gestionar, agregar/eliminar pacientes, ver y regenerar el código de cada uno, aceptar o rechazar solicitudes, desvincular dispositivos.
-- Editar datos del paciente, medicación (con horarios), contactos y diagnósticos.
+- Editar datos del paciente, medicación (con horarios), contactos e historial de diagnósticos; agregar o quitar diagnósticos.
 - Marcar tomas, **probar alarma** y recibir las alarmas de todos sus pacientes.
+- Generar un informe de salud imprimible o guardarlo como PDF desde el navegador.
 
 **Vista paciente** (solo lectura)
-- Ve datos importantes, medicación, historial y contactos.
+- Ve desde el celular datos importantes, medicación, historial y contactos; puede ajustar el tamaño del texto.
 - Lo único que puede hacer es **informar con un interruptor si tomó la pastilla**.
 
 **Alarmas**
 - Suenan en el paciente y en el cuidador a la hora de cada toma, hasta que se marque como tomada (se sincroniza en vivo). Se puede silenciar 5 minutos.
+- Los botones de llamada abren el marcador del dispositivo con el número del contacto o emergencias.
 
 ## Cómo probar la conexión cuidador ↔ paciente
 1. Abrí la app en una pestaña y registrate como cuidador (se crea un paciente de ejemplo con su código).
@@ -34,6 +36,7 @@ Abrí la URL de Vite (normalmente `http://localhost:5173`). Build de producción
 
 ## Alcance de la demo
 - Los datos se guardan en `localStorage` y se sincronizan entre pestañas del **mismo navegador**. Para conectar dispositivos distintos hace falta un backend (Firebase, Supabase o Node + WebSocket): todo el acceso a datos está aislado en `src/store.js`, así que solo hay que reemplazar ese archivo.
+- El envío del informe a emergencias es solo demostrativo: no se transmiten datos. La integración real queda pendiente del backend; el informe puede imprimirse o guardarse como PDF desde el navegador.
 - La recuperación de contraseña muestra el código en pantalla porque no hay servidor de correo.
 - Las contraseñas se guardan con hash SHA-256 solo para la demo; en producción corresponde un hash con sal en el servidor.
 - Las alarmas suenan con la pestaña abierta y después de haber interactuado con la página (restricción de los navegadores). Para avisos con la app cerrada se necesitan notificaciones push.

@@ -103,3 +103,59 @@
 .alarm-actions .primary-button{background:#1b9a72;border-color:#1b9a72}
 
 @media(max-width:600px){.auth-card{padding:24px 18px}.form-grid{grid-template-columns:1fr}.patients-grid{grid-template-columns:1fr}.detail-row .switch-label{margin-left:auto}.patient-card .secondary-button{margin:0}.head-actions{width:100%}}
+
+:root[data-font-size="small"] #root{zoom:.9}
+:root[data-font-size="normal"] #root{zoom:1}
+:root[data-font-size="large"] #root{zoom:1.1}
+a:focus-visible{outline:3px solid #a8c7ff;outline-offset:2px}
+.top-actions{gap:12px}
+.font-size-control{display:flex;align-items:center;border:1px solid #e4eaf2;border-radius:8px;overflow:hidden}
+.font-size-control button{min-width:30px;height:30px;border:0;border-right:1px solid #e4eaf2;background:#fff;color:#5d708a;font-size:11px;font-weight:700}
+.font-size-control button:last-child{border-right:0}
+.font-size-control button[aria-pressed="true"]{background:#edf3ff;color:#2f65ce}
+.report-open-button{white-space:nowrap}
+.emergency-call,.quick-action,.contact-detail>a{text-decoration:none}
+.history-row>.remove-condition{flex-shrink:0}
+.report-overlay{z-index:80}
+.report-card{width:min(820px,100%);max-height:calc(100vh - 32px);overflow:auto;background:#fff;border-radius:16px;padding:20px;box-shadow:0 20px 70px #132b4933}
+.report-actions{position:sticky;top:0;z-index:1;display:flex;justify-content:flex-end;gap:8px;flex-wrap:wrap;padding:0 0 14px;background:#fff}
+.report-notice{margin:0 0 12px;padding:10px 12px;border-radius:8px;background:#fff7e6;color:#805b13;font-size:12px;line-height:1.5}
+.health-report{max-width:720px;margin:0 auto;padding:24px 30px;border:1px solid #e5ebf3;border-radius:10px;color:#26384f;background:#fff}
+.report-heading{display:flex;align-items:center;justify-content:space-between;gap:15px;border-bottom:1px solid #e8edf4;padding-bottom:15px}
+.report-heading .brand-mark{object-fit:contain;background:transparent}
+.report-heading>span{font-size:10px;color:#7f8da1;text-align:right}
+.health-report h1{font:800 25px Manrope,sans-serif;margin:22px 0 5px}
+.report-subtitle{font-size:11px;color:#73839a;line-height:1.6;margin:0 0 18px}
+.report-section{margin:17px 0}
+.report-section h2{font:700 14px Manrope,sans-serif;padding-bottom:7px;border-bottom:1px solid #e8edf4;margin:0 0 9px}
+.report-section p,.report-section li{font-size:11px;line-height:1.6;color:#465970}
+.report-section p{margin:0}
+.report-section ul{margin:0;padding-left:19px}
+.report-facts{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.report-facts>div{display:flex;flex-direction:column;gap:4px;padding:9px 10px;background:#f7f9fc;border-radius:7px}
+.report-facts span{font-size:9px;color:#8492a5}
+.report-facts strong{font-size:11px}
+.report-disclaimer{margin:23px 0 0;padding-top:12px;border-top:1px solid #e8edf4;font-size:9px;line-height:1.6;color:#7d8999}
+
+@media(max-width:600px){
+  .top-actions{gap:6px}
+  .font-size-control button{min-width:25px;height:28px}
+  .report-open-button{width:100%}
+  .report-card{padding:13px}
+  .report-actions{justify-content:stretch}
+  .report-actions button{flex:1}
+  .health-report{padding:18px 14px}
+  .report-heading{align-items:flex-start}
+  .report-heading .brand-name{font-size:18px}
+  .report-heading .brand-tag{font-size:7px}
+}
+
+@media print{
+  @page{margin:15mm}
+  body *{visibility:hidden!important}
+  .report-overlay,.report-overlay *{visibility:visible!important}
+  .report-overlay{position:static;display:block;padding:0;overflow:visible;background:#fff;animation:none}
+  .report-card{position:static;width:100%;max-height:none;overflow:visible;padding:0;border:0;border-radius:0;box-shadow:none}
+  .report-actions,.report-notice{display:none!important}
+  .health-report{max-width:none;padding:0;border:0;border-radius:0}
+}

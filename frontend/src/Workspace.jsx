@@ -2,16 +2,76 @@ import React, { useEffect, useState } from 'react';
 import {
   Activity, AlertTriangle, ArrowUpRight, Bell, BellRing, CalendarDays, Check, ChevronDown,
   ClipboardList, Clock3, Copy, FileText, HeartPulse, Info, LogOut, Menu, Pencil, Phone, Pill,
-  Plus, RefreshCw, Search, ShieldCheck, Smartphone, Trash2, UserRound, Users, UsersRound, X
+  Plus, Printer, RefreshCw, Search, ShieldCheck, Smartphone, Trash2, UserRound, Users, UsersRound, X
 } from 'lucide-react';
 import { Logo, Switch, FormModal } from './ui.jsx';
 import { ring, unlockAudio, useAlarms } from './alarm.js';
 import {
-  addContact, addMedicine, addPatient, doseKey, finishTest, initials, regenCode, removeContact,
-  removeMedicine, removePatient, respondRequest, setDose, triggerTest, unlinkRequest, updatePatient, TIME_RE
+  addCondition, addContact, addMedicine, addPatient, doseKey, finishTest, initials, regenCode,
+  removeCondition, removeContact, removeMedicine, removePatient, respondRequest, setDose,
+  triggerTest, unlinkRequest, updatePatient, TIME_RE
 } from './store.js';
 
 const list = (s) => String(s || '').split(',').map((x) => x.trim()).filter(Boolean);
+const phoneHref = (phone) => `tel:${String(phone || '').trim().replace(/[^\d+]/g, '')}`;
+
+function HealthReport({ patient, doses, onClose }) {
+  const [sendNotice, setSendNotice] = useState('');
+  const generatedAt = new Intl.DateTimeFormat('es-AR', { dateStyle: 'long', timeStyle: 'short' }).format(new Date());
+  return <div className="modal-backdrop report-overlay" role="dialog" aria-modal="true" aria-labelledby="report-title">
+    <section className="report-card">
+      <div className="report-actions">
+        <button className="secondary-button" onClick={onClose}><X size={15}/> Cerrar</button>
+        <button className="primary-button" onClick={() => window.print()}><Printer size={15}/> Imprimir / Guardar PDF</button>
+        <button className="secondary-button" onClick={() => setSendNotice('Modo demostración: no se enviaron datos. La integración con emergencias se conectará mediante el backend.')}>Enviar a emergencias (demo)</button>
+      </div>
+      {sendNotice && <p className="report-notice" role="status">{sendNotice}</p>}
+      <article className="health-report">
+        <header className="report-heading"><Logo/><span>Informe generado el {generatedAt}</span></header>
+        <h1 id="report-title">Informe de salud</h1>
+        <p className="report-subtitle">Resumen de la información registrada en InGuard. No reemplaza una historia clínica oficial.</p>
+
+        <section className="report-section">
+          <h2>Datos de la persona</h2>
+          <div className="report-facts">
+            <div><span>Nombre</span><strong>{patient.name || '—'}</strong></div>
+            <div><span>Edad</span><strong>{patient.age ? `${patient.age} años` : '—'}</strong></div>
+            <div><span>DNI</span><strong>{patient.dni || '—'}</strong></div>
+            <div><span>Grupo sanguíneo</span><strong>{patient.blood || '—'}</strong></div>
+            <div><span>Altura</span><strong>{patient.height || '—'}</strong></div>
+            <div><span>Peso</span><strong>{patient.weight || '—'}</strong></div>
+          </div>
+        </section>
+
+        <section className="report-section">
+          <h2>Alergias</h2>
+          <p>{patient.allergies.join(', ') || 'Sin alergias registradas.'}</p>
+        </section>
+
+        <section className="report-section">
+          <h2>Diagnósticos y enfermedades</h2>
+          {patient.conditions.length ? <ul>{patient.conditions.map((condition) => <li key={condition}>{condition}</li>)}</ul> : <p>Sin diagnósticos registrados.</p>}
+        </section>
+
+        <section className="report-section">
+          <h2>Medicación actual</h2>
+          {patient.medicines.length ? <ul>{patient.medicines.map((medicine) => <li key={medicine.id}>{medicine.name} — {medicine.dose}, {medicine.frequency}; horarios: {medicine.times.join(', ') || 'sin horario'}</li>)}</ul> : <p>Sin medicación registrada.</p>}
+        </section>
+
+        <section className="report-section">
+          <h2>Tomas de hoy</h2>
+          {doses.length ? <ul>{doses.map((dose) => <li key={dose.key}>{dose.time} — {dose.med.name}: {dose.taken ? 'tomada' : 'pendiente'}</li>)}</ul> : <p>No hay tomas programadas.</p>}
+        </section>
+
+        <section className="report-section">
+          <h2>Contactos de emergencia</h2>
+          {patient.contacts.length ? <ul>{patient.contacts.map((contact) => <li key={contact.id}>{contact.name} ({contact.relation}) — {contact.phone}</li>)}</ul> : <p>Sin contactos registrados.</p>}
+        </section>
+        <p className="report-disclaimer">Documento de demostración generado desde datos cargados por el usuario. Ante una emergencia, llamá al servicio local correspondiente.</p>
+      </article>
+    </section>
+  </div>;
+}
 
 /* ---------- Overlay de alarma (suena en paciente y cuidador) ---------- */
 function AlarmOverlay({ alarms, role, onSilence, onTake }) {
@@ -109,12 +169,21 @@ export default function Workspace({ role, db, user, request, onLogout }) {
   const [notice, setNotice] = useState('');
   const [query, setQuery] = useState('');
   const [modal, setModal] = useState(null);
+  const [reportOpen, setReportOpen] = useState(false);
+  const [fontSize, setFontSize] = useState(() => {
+    const saved = localStorage.getItem('inguard_font_size');
+    return ['small', 'normal', 'large'].includes(saved) ? saved : 'normal';
+  });
 
   const patient = myPatients.find((p) => p.id === selectedId) || myPatients[0];
   const select = (id) => { setSelectedId(id); sessionStorage.setItem('inguard_selected', id); };
 
   const toast = (msg) => { setNotice(msg); window.setTimeout(() => setNotice(''), 3000); };
-  const call = (phone, name) => toast(`Demo: se iniciaría una llamada a ${name} (${phone}).`);
+
+  useEffect(() => {
+    document.documentElement.dataset.fontSize = fontSize;
+    localStorage.setItem('inguard_font_size', fontSize);
+  }, [fontSize]);
 
   useEffect(() => {
     const f = () => unlockAudio();
@@ -155,6 +224,9 @@ export default function Workspace({ role, db, user, request, onLogout }) {
       fields: [{ name: 'name', label: 'Nombre completo', required: true, full: true }, { name: 'age', label: 'Edad', type: 'number' }, { name: 'dni', label: 'DNI' }, { name: 'blood', label: 'Grupo sanguíneo' }, { name: 'height', label: 'Altura' }, { name: 'weight', label: 'Peso' },
         { name: 'allergies', label: 'Alergias (separadas por coma)', full: true }, { name: 'conditions', label: 'Enfermedades y diagnósticos (separados por coma)', full: true }],
       onSubmit: (v) => { updatePatient(patient.id, { name: v.name.trim(), age: v.age, dni: v.dni, blood: v.blood, height: v.height, weight: v.weight, allergies: list(v.allergies), conditions: list(v.conditions) }); toast('Datos actualizados.'); } },
+    addCondition: patient && { title: 'Agregar diagnóstico o enfermedad', subtitle: `Se agregará al historial de ${patient.name}.`, submitLabel: 'Agregar al historial',
+      fields: [{ name: 'condition', label: 'Diagnóstico o enfermedad', required: true, full: true, placeholder: 'Ej. Hipertensión arterial' }],
+      onSubmit: (v) => { addCondition(patient.id, v.condition); toast('Diagnóstico agregado al historial.'); } },
     addMed: patient && { title: 'Agregar medicamento', subtitle: `Para ${patient.name}. La alarma va a sonar en todos los dispositivos conectados.`, submitLabel: 'Agregar',
       fields: [{ name: 'name', label: 'Medicamento', required: true, full: true }, { name: 'dose', label: 'Dosis', placeholder: '50 mg', required: true }, { name: 'frequency', label: 'Frecuencia', placeholder: 'Cada 12 horas' }, { name: 'times', label: 'Horarios (HH:MM, separados por coma)', placeholder: '08:00, 20:00', required: true, full: true }],
       onSubmit: (v) => {
@@ -199,6 +271,11 @@ export default function Workspace({ role, db, user, request, onLogout }) {
         <div className="breadcrumb">{isCaregiver ? 'Cuidador' : 'Paciente'} <span>/</span> <b>{sectionLabel}</b></div>
         <div className="top-actions">
           <div className="secure-label"><ShieldCheck size={16}/> Datos protegidos</div>
+          <div className="font-size-control" role="group" aria-label="Tamaño del texto">
+            <button onClick={() => setFontSize('small')} aria-label="Texto pequeño" aria-pressed={fontSize === 'small'}>A−</button>
+            <button onClick={() => setFontSize('normal')} aria-label="Texto normal" aria-pressed={fontSize === 'normal'}>A</button>
+            <button onClick={() => setFontSize('large')} aria-label="Texto grande" aria-pressed={fontSize === 'large'}>A+</button>
+          </div>
           <button className="icon-button" onClick={() => pendingCount ? goTo('patients') : toast('No tenés notificaciones nuevas')} aria-label="Notificaciones"><Bell size={19}/>{pendingCount > 0 && <i/>}</button>
           <div className="user-avatar" title={isCaregiver ? user.name : request.deviceName}>{initials(isCaregiver ? user.name : (request.deviceName || patient?.name))}</div>
         </div>
@@ -215,6 +292,7 @@ export default function Workspace({ role, db, user, request, onLogout }) {
                 : isCaregiver ? 'Consultá y gestioná la información del paciente.' : 'Consultá tu información. Tu cuidador la mantiene actualizada.'}
             </p>
           </div>
+          {patient && section !== 'patients' && <button className="secondary-button report-open-button" onClick={() => setReportOpen(true)}><FileText size={15}/> Generar informe</button>}
           {patient && section !== 'patients' && <div className="updated"><CalendarDays size={16}/><span>Última actualización<br/><b>{patient.updated}</b></span></div>}
         </div>
 
@@ -226,7 +304,7 @@ export default function Workspace({ role, db, user, request, onLogout }) {
           <section className="emergency-banner">
             <div className="emergency-symbol"><AlertTriangle size={25}/></div>
             <div className="emergency-copy"><strong>Información para una emergencia</strong><span>Si {firstName} necesita asistencia, consultá estos datos antes de actuar.</span></div>
-            <button className="emergency-call" onClick={() => call('107', 'Emergencias médicas')}><Phone size={17}/> Llamar emergencias</button>
+            <a className="emergency-call" href={phoneHref('107')}><Phone size={17}/> Llamar emergencias</a>
           </section>
 
           <section className="patient-card">
@@ -256,7 +334,7 @@ export default function Workspace({ role, db, user, request, onLogout }) {
             </article>
             <article className="info-card contacts-card"><div className="card-heading"><div className="card-icon green"><Users size={19}/></div><div><h3>Contactos de emergencia</h3><p>Personas a las que podés avisar</p></div></div>
               {patient.contacts.length === 0 && <p className="empty-state">Sin contactos registrados.</p>}
-              {patient.contacts.slice(0, 2).map((c) => <div className="contact-mini" key={c.id}><div className="avatar contact-avatar">{initials(c.name)}</div><div className="contact-copy"><strong>{c.name}</strong><span>{c.relation}</span></div><button className="call-small" onClick={() => call(c.phone, c.name)} aria-label={`Llamar a ${c.name}`}><Phone size={15}/></button></div>)}
+              {patient.contacts.slice(0, 2).map((c) => <div className="contact-mini" key={c.id}><div className="avatar contact-avatar">{initials(c.name)}</div><div className="contact-copy"><strong>{c.name}</strong><span>{c.relation}</span></div><a className="call-small" href={phoneHref(c.phone)} aria-label={`Llamar a ${c.name}`}><Phone size={15}/></a></div>)}
               <button className="text-link" onClick={() => goTo('contacts')}>Ver todos los contactos <ArrowUpRight size={14}/></button>
             </article>
           </div>
@@ -269,7 +347,7 @@ export default function Workspace({ role, db, user, request, onLogout }) {
             <article className="quick-access"><div className="bottom-title"><div><h3>Acceso rápido</h3><p>Acciones útiles ante una emergencia</p></div></div>
               <button className="quick-action" onClick={() => goTo('history')}><div className="quick-icon blue"><FileText size={18}/></div><span><strong>Consultar historial médico</strong><small>Diagnósticos y antecedentes</small></span><ArrowUpRight size={17}/></button>
               <button className="quick-action" onClick={() => goTo('contacts')}><div className="quick-icon green"><Phone size={18}/></div><span><strong>Llamar a un contacto</strong><small>Familiares y profesionales</small></span><ArrowUpRight size={17}/></button>
-              <button className="quick-action" onClick={() => call('107', 'Emergencias médicas')}><div className="quick-icon red"><HeartPulse size={18}/></div><span><strong>Emergencias médicas</strong><small>Servicio de asistencia · 107</small></span><ArrowUpRight size={17}/></button>
+              <a className="quick-action" href={phoneHref('107')}><div className="quick-icon red"><HeartPulse size={18}/></div><span><strong>Emergencias médicas</strong><small>Servicio de asistencia · 107</small></span><ArrowUpRight size={17}/></a>
             </article>
           </section>
         </>}
@@ -301,15 +379,15 @@ export default function Workspace({ role, db, user, request, onLogout }) {
           <p className="disclaimer"><Info size={16}/> {isCaregiver ? 'Las alarmas suenan en tu dispositivo y en el del paciente hasta que la toma se marque como realizada.' : 'Solo tu cuidador puede cambiar los medicamentos. Vos solo informás si tomaste cada pastilla.'}</p>
         </section>}
 
-        {patient && section === 'history' && <section className="detail-panel"><div className="panel-head"><div><h2>Historial médico</h2><p>Antecedentes y diagnósticos informados.</p></div>{isCaregiver && <button className="secondary-button" onClick={() => setModal('editPatient')}><Pencil size={14}/> Editar</button>}</div>
+        {patient && section === 'history' && <section className="detail-panel"><div className="panel-head"><div><h2>Historial médico</h2><p>Antecedentes y diagnósticos informados.</p></div>{isCaregiver && <div className="head-actions"><button className="secondary-button" onClick={() => setModal('editPatient')}><Pencil size={14}/> Editar historial</button><button className="primary-button" onClick={() => setModal('addCondition')}><Plus size={15}/> Agregar diagnóstico</button></div>}</div>
           <label className="search-box"><Search size={17}/><input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Buscar diagnóstico..."/></label>
-          <div className="history-block"><h3>Diagnósticos registrados</h3>{filteredConditions.length ? filteredConditions.map((c) => <div className="history-row" key={c}><div className="history-icon"><HeartPulse size={17}/></div><div><strong>{c}</strong><span>Registrado en la ficha del paciente</span></div><span className="history-active">Activo</span></div>) : <p className="empty-state">No se encontraron diagnósticos.</p>}</div>
+          <div className="history-block"><h3>Diagnósticos registrados</h3>{filteredConditions.length ? filteredConditions.map((c) => <div className="history-row" key={c}><div className="history-icon"><HeartPulse size={17}/></div><div><strong>{c}</strong><span>Registrado en la ficha del paciente</span></div><span className="history-active">Activo</span>{isCaregiver && <button className="call-small remove-condition" onClick={() => { if (window.confirm(`¿Quitar ${c} del historial de ${patient.name}?`)) { removeCondition(patient.id, c); toast('Diagnóstico quitado del historial.'); } }} aria-label={`Quitar ${c} del historial`}><Trash2 size={15}/></button>}</div>) : <p className="empty-state">{query ? 'No se encontraron diagnósticos.' : 'No hay diagnósticos registrados.'}</p>}</div>
           <div className="history-block"><h3>Información adicional</h3><div className="fact-grid"><div><span>Grupo sanguíneo</span><strong>{patient.blood || '—'}</strong></div><div><span>Alergias registradas</span><strong>{patient.allergies.join(', ') || '—'}</strong></div><div><span>Altura</span><strong>{patient.height || '—'}</strong></div><div><span>Peso</span><strong>{patient.weight || '—'}</strong></div></div></div>
           <p className="disclaimer"><Info size={16}/> La información es ilustrativa y no reemplaza una historia clínica oficial.</p></section>}
 
         {patient && section === 'contacts' && <section className="detail-panel"><div className="panel-head"><div><h2>Contactos de emergencia</h2><p>Personas de referencia para asistir al paciente.</p></div><span className="panel-count">{patient.contacts.length} contactos</span></div>
           {patient.contacts.length === 0 && <p className="empty-state">No hay contactos cargados.</p>}
-          {patient.contacts.map((c) => <div className="contact-detail" key={c.id}><div className="avatar contact-avatar large">{initials(c.name)}</div><div className="contact-detail-copy"><strong>{c.name}</strong><span>{c.relation}</span><small>{c.phone}</small></div><button className="primary-button" onClick={() => call(c.phone, c.name)}><Phone size={16}/> Llamar</button>{isCaregiver && <button className="secondary-button" onClick={() => removeContact(patient.id, c.id)} aria-label={`Quitar ${c.name}`}><Trash2 size={15}/></button>}</div>)}
+          {patient.contacts.map((c) => <div className="contact-detail" key={c.id}><div className="avatar contact-avatar large">{initials(c.name)}</div><div className="contact-detail-copy"><strong>{c.name}</strong><span>{c.relation}</span><small>{c.phone}</small></div><a className="primary-button" href={phoneHref(c.phone)}><Phone size={16}/> Llamar</a>{isCaregiver && <button className="secondary-button" onClick={() => removeContact(patient.id, c.id)} aria-label={`Quitar ${c.name}`}><Trash2 size={15}/></button>}</div>)}
           {isCaregiver && <button className="secondary-button add-contact" onClick={() => setModal('addContact')}><Plus size={16}/> Agregar contacto</button>}
           <p className="disclaimer"><Info size={16}/> Los números son ficticios y sirven solo para mostrar el funcionamiento de la interfaz.</p></section>}
 
@@ -318,6 +396,7 @@ export default function Workspace({ role, db, user, request, onLogout }) {
     </main>
 
     {modal && forms[modal] && <FormModal {...forms[modal]} onClose={() => setModal(null)}/>}
+    {reportOpen && patient && <HealthReport patient={patient} doses={doses} onClose={() => setReportOpen(false)}/>}
     <AlarmOverlay alarms={active} role={role} onSilence={(id) => silence(id)} onTake={takeFromAlarm}/>
     {notice && <div className="toast"><Check size={17}/>{notice}<button onClick={() => setNotice('')} aria-label="Cerrar aviso"><X size={15}/></button></div>}
     <div className="demo-note">PROTOTIPO ACADÉMICO · DATOS FICTICIOS</div>

@@ -155,6 +155,25 @@ export const updatePatient = (id, patch) => mutate((db) => {
   if (p) Object.assign(p, patch, { updated: todayLabel() });
 });
 
+export const addCondition = (patientId, name) => mutate((db) => {
+  const p = db.patients.find((x) => x.id === patientId);
+  if (!p) throw new Error('No encontramos al paciente.');
+  const condition = name.trim();
+  if (!condition) throw new Error('Ingresá un diagnóstico o enfermedad.');
+  if (p.conditions.some((x) => x.toLocaleLowerCase() === condition.toLocaleLowerCase())) {
+    throw new Error('Ese diagnóstico ya está registrado.');
+  }
+  p.conditions.push(condition);
+  p.updated = todayLabel();
+});
+
+export const removeCondition = (patientId, condition) => mutate((db) => {
+  const p = db.patients.find((x) => x.id === patientId);
+  if (!p) throw new Error('No encontramos al paciente.');
+  p.conditions = p.conditions.filter((x) => x !== condition);
+  p.updated = todayLabel();
+});
+
 export const removePatient = (id) => mutate((db) => {
   db.patients = db.patients.filter((p) => p.id !== id);
   db.requests = db.requests.filter((r) => r.patientId !== id);
