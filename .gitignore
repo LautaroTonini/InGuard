@@ -1,0 +1,38 @@
+
+# Ignorar todo lo que está dentro de app
+/app/*
+
+# Mantener solo mis tres carpetas
+!/app/controllers/
+/app/controllers/*
+!/app/controllers/**
+
+!/app/models/
+/app/models/*
+!/app/models/**
+
+!/app/routes/
+/app/routes/*
+!/app/routes/**
+
+# Archivos locales
+/venv/
+/.env
+__pycache__/
+*.pyc
+README.md/
+
+# Ignorar el contenido de backend/app
+/backend/app/*
+
+# Mantener las carpetas asignadas
+!/backend/app/controllers/
+/backend/app/controllers/**
+!/backend/app/models/
+/backend/app/models/**
+!/backend/app/routes/
+/backend/app/routes/**
+
+# Ignorar entorno virtual y secretos
+/backend/venv/
+/backend/.env

@@ -1,0 +1,10 @@
+Flask>=3.0
+flask-cors>=4.0
+pymongo>=4.6
+dnspython>=2.4      # necesario para URIs mongodb+srv:// de Atlas
+certifi>=2024.2.2
+pydantic[email]>=2.6
+PyJWT>=2.8
+bcrypt>=4.1
+python-dotenv>=1.0
+gunicorn>=21.2   # solo para produccion
