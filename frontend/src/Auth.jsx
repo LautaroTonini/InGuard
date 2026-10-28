@@ -23,12 +23,12 @@ function CaregiverAccess({ onSession }) {
     try {
       if (mode === 'login') {
         const u = await loginCaregiver(f);
-        onSession({ role: 'caregiver', userId: u.id });
+        onSession({ role: 'caregiver', userId: u.id, token: u.token });
       } else if (mode === 'register') {
         if (f.password.length < 6) throw new Error('La contraseña debe tener al menos 6 caracteres.');
         if (f.password !== f.confirm) throw new Error('Las contraseñas no coinciden.');
         const u = await registerCaregiver(f);
-        onSession({ role: 'caregiver', userId: u.id });
+        onSession({ role: 'caregiver', userId: u.id, token: u.token });
       } else if (step === 1) {
         setDemoCode(requestReset(f.email));
         setStep(2);
@@ -84,15 +84,18 @@ function PatientAccess({ onSession }) {
   const [code, setCode] = useState('');
   const [name, setName] = useState('');
   const [error, setError] = useState('');
+  const [busy, setBusy] = useState(false);
 
-  const submit = (e) => {
+  const submit = async (e) => {
     e.preventDefault();
     setError('');
+    setBusy(true);
     unlockAudio();
     try {
-      const requestId = requestLink({ code, name });
-      onSession({ role: 'patient', requestId });
+      const request = await requestLink({ code, name });
+      onSession({ role: 'patient', requestId: request.id, token: request.token });
     } catch (err) { setError(err.message); }
+    finally { setBusy(false); }
   };
 
   return <form onSubmit={submit} className="auth-form">
@@ -101,7 +104,7 @@ function PatientAccess({ onSession }) {
     <Field label="Código de acceso" icon={KeyRound} required value={code} onChange={(e) => setCode(e.target.value.toUpperCase())} placeholder="ABC-123" maxLength={7} className="code-input" autoComplete="off"/>
     <Field label="Nombre del dispositivo (opcional)" icon={Smartphone} value={name} onChange={(e) => setName(e.target.value)} placeholder="Ej: Celular de Elena"/>
     {error && <div className="form-error">{error}</div>}
-    <button type="submit" className="primary-button auth-submit">Solicitar acceso</button>
+    <button type="submit" className="primary-button auth-submit" disabled={busy}>{busy ? 'Enviando…' : 'Solicitar acceso'}</button>
   </form>;
 }
 

@@ -12,6 +12,15 @@ Python + Flask + MongoDB, arquitectura MVC.
 
 Extra necesario: `/auth/registro|login|me`, `/cuidador/pacientes/...` (vincular), `/sync`.
 
+## Cliente React
+El frontend consume el contrato `/app/*`, expuesto por `app/routes/web_routes.py`:
+- `POST /app/auth/registro|login|recuperar|restablecer`
+- `GET /app/snapshot` (requiere token Bearer de cuidador o dispositivo)
+- `POST /app/solicitudes`, `POST /app/solicitudes/{id}/respuesta`, `DELETE /app/solicitudes/{id}`
+- `/app/pacientes` para crear, editar y eliminar pacientes, regenerar códigos, administrar medicación y contactos, registrar tomas y probar alarmas.
+
+El frontend usa `http://localhost:5000` por defecto. Para cambiarlo, definir `VITE_API_URL` en `frontend/.env.local`. Configurar `CORS_ORIGINS` con el origen de Vite (por defecto `http://localhost:5173`) al desplegar.
+
 ## Estructura MVC
 ```
 app/

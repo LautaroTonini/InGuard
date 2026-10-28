@@ -1,253 +1,223 @@
 import { useSyncExternalStore } from 'react';
 
-/* ------------------------------------------------------------------
-   Capa de datos de InGuard (prototipo).
-   - Todo se guarda en localStorage y se sincroniza en vivo entre pestañas
-     del mismo navegador (evento "storage").
-   - Todas las funciones de abajo son el "contrato" con el backend: para
-     conectar un servidor real (Firebase, Supabase, Node + WebSocket)
-     alcanza con reemplazar la implementación de este archivo.
-------------------------------------------------------------------- */
-
-const KEY = 'inguard_db_v1';
 const SESSION_KEY = 'inguard_session_v1';
-
+const API_BASE = (import.meta.env.VITE_API_URL || 'http://localhost:5000').replace(/\/+$/, '');
 const emptyDB = () => ({ users: [], patients: [], requests: [], resets: {} });
-let raw = null;
 let cache = emptyDB();
 const listeners = new Set();
 
-function read() {
-  const r = localStorage.getItem(KEY);
-  if (r !== raw) {
-    raw = r;
-    try { cache = r ? JSON.parse(r) : emptyDB(); } catch { cache = emptyDB(); }
-  }
-  return cache;
+const emit = () => listeners.forEach((listener) => listener());
+const subscribe = (callback) => {
+  listeners.add(callback);
+  return () => listeners.delete(callback);
+};
+
+export const useDB = () => useSyncExternalStore(subscribe, () => cache);
+
+function sessionToken() {
+  const session = loadSession();
+  return session?.token || '';
 }
-const emit = () => listeners.forEach((l) => l());
-const subscribe = (cb) => { listeners.add(cb); return () => listeners.delete(cb); };
-window.addEventListener('storage', (e) => { if (e.key === KEY) emit(); });
 
-export const useDB = () => useSyncExternalStore(subscribe, read);
+async function api(path, { method = 'GET', body, token = sessionToken() } = {}) {
+  let response;
+  try {
+    response = await fetch(`${API_BASE}${path}`, {
+      method,
+      headers: {
+        ...(body === undefined ? {} : { 'Content-Type': 'application/json' }),
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+    });
+  } catch {
+    throw new Error(`No se pudo conectar con el backend (${API_BASE}). Verificá que esté iniciado y que VITE_API_URL sea correcto.`);
+  }
 
-export function mutate(fn) {
-  const db = structuredClone(read());
-  const result = fn(db); // si lanza un error, no se guarda nada
-  raw = JSON.stringify(db);
-  cache = db;
-  localStorage.setItem(KEY, raw);
-  emit();
+  const text = await response.text();
+  let result = null;
+  if (text) {
+    try {
+      result = JSON.parse(text);
+    } catch {
+      throw new Error(`El backend respondió con un formato inválido (HTTP ${response.status}).`);
+    }
+  }
+  if (!response.ok) {
+    const detail = result?.detail;
+    const message = Array.isArray(detail)
+      ? detail.map((item) => `${item.campo}: ${item.mensaje}`).join(' · ')
+      : detail || `Error del servidor (HTTP ${response.status}).`;
+    const error = new Error(message);
+    error.status = response.status;
+    throw error;
+  }
   return result;
 }
 
-/* ---------- Sesión (por pestaña, así podés abrir cuidador y paciente a la vez) ---------- */
-export const loadSession = () => {
-  try { return JSON.parse(sessionStorage.getItem(SESSION_KEY)); } catch { return null; }
-};
-export const saveSession = (s) => sessionStorage.setItem(SESSION_KEY, JSON.stringify(s));
-export const clearSession = () => sessionStorage.removeItem(SESSION_KEY);
+export async function refreshDB(token = sessionToken()) {
+  const snapshot = await api('/app/snapshot', { token });
+  cache = {
+    users: snapshot.users || [],
+    patients: snapshot.patients || [],
+    requests: snapshot.requests || [],
+    resets: {},
+  };
+  emit();
+  return cache;
+}
 
-/* ---------- Utilidades ---------- */
-export const uid = () => (crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).slice(2) + Date.now().toString(36));
-export const todayKey = () => new Date().toLocaleDateString('en-CA'); // AAAA-MM-DD
+async function refreshAfter(path, options) {
+  const result = await api(path, options);
+  await refreshDB();
+  return result;
+}
+
+/* ---------- Sesión por pestaña ---------- */
+export const loadSession = () => {
+  try {
+    return JSON.parse(sessionStorage.getItem(SESSION_KEY));
+  } catch {
+    return null;
+  }
+};
+
+export const saveSession = (session) => sessionStorage.setItem(SESSION_KEY, JSON.stringify(session));
+export const clearSession = () => {
+  sessionStorage.removeItem(SESSION_KEY);
+  cache = emptyDB();
+  emit();
+};
+
+/* ---------- Utilidades compartidas ---------- */
+export const uid = () => (crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(36).slice(2)}`);
+export const todayKey = () => new Date().toLocaleDateString('en-CA');
 export const doseKey = (medId, time) => `${todayKey()}|${medId}|${time}`;
-export const initials = (name = '') => name.trim().split(/\s+/).slice(0, 2).map((w) => w[0]?.toUpperCase() || '').join('') || '?';
-const todayLabel = () => new Date().toLocaleDateString('es-AR', { day: 'numeric', month: 'short', year: 'numeric' });
-const COLORS = ['blue', 'violet', 'orange'];
+export const initials = (name = '') => name.trim().split(/\s+/).slice(0, 2).map((word) => word[0]?.toUpperCase() || '').join('') || '?';
 export const TIME_RE = /^([01]\d|2[0-3]):[0-5]\d$/;
 
-async function hash(s) {
-  const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode('inguard:' + s));
-  return [...new Uint8Array(buf)].map((x) => x.toString(16).padStart(2, '0')).join('');
-}
-
-const ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-const normCode = (c = '') => c.toUpperCase().replace(/[^A-Z0-9]/g, '');
-function genCode(db) {
-  let code;
-  do {
-    const r = Array.from({ length: 6 }, () => ALPHABET[Math.floor(Math.random() * ALPHABET.length)]).join('');
-    code = `${r.slice(0, 3)}-${r.slice(3)}`;
-  } while (db.patients.some((p) => p.code === code));
-  return code;
-}
-
-function makePatient(db, caregiverId, data = {}) {
-  return {
-    id: uid(), caregiverId, code: genCode(db),
-    name: '', age: '', dni: '', blood: '', height: '', weight: '',
-    allergies: [], conditions: [], contacts: [], medicines: [],
-    doses: {}, tests: [], updated: todayLabel(),
-    ...data,
-  };
-}
-
-const samplePatient = () => ({
-  name: 'Elena Martínez', age: 74, dni: '18.452.763', blood: 'O+', height: '1,62 m', weight: '67 kg',
-  allergies: ['Penicilina'], conditions: ['Hipertensión arterial', 'Diabetes tipo 2'],
-  contacts: [
-    { id: uid(), name: 'María Martínez', relation: 'Hija · Contacto principal', phone: '+54 261 555-0142' },
-    { id: uid(), name: 'Dr. Pablo Gómez', relation: 'Médico de cabecera', phone: '+54 261 555-0188' },
-  ],
-  medicines: [
-    { id: uid(), name: 'Losartán', dose: '50 mg', frequency: 'Cada 24 horas', times: ['08:00'], color: 'blue' },
-    { id: uid(), name: 'Metformina', dose: '850 mg', frequency: 'Cada 12 horas', times: ['08:00', '20:00'], color: 'violet' },
-    { id: uid(), name: 'Aspirina', dose: '100 mg', frequency: 'Una vez al día', times: ['13:00'], color: 'orange' },
-  ],
-});
-
-/* ---------- Cuenta del cuidador ---------- */
+/* ---------- Acceso ---------- */
 export async function registerCaregiver({ name, email, password }) {
-  const em = email.trim().toLowerCase();
-  const passHash = await hash(password);
-  return mutate((db) => {
-    if (db.users.some((u) => u.email === em)) throw new Error('Ya existe una cuenta con ese correo.');
-    const user = { id: uid(), role: 'caregiver', name: name.trim(), email: em, passHash };
-    db.users.push(user);
-    db.patients.push(makePatient(db, user.id, samplePatient())); // paciente de ejemplo (se puede eliminar)
-    return { id: user.id };
+  const result = await api('/app/auth/registro', {
+    method: 'POST',
+    token: '',
+    body: { nombre: name.trim(), email: email.trim().toLowerCase(), password, paciente_ejemplo: true },
   });
+  return { id: result.id, token: result.token };
 }
 
 export async function loginCaregiver({ email, password }) {
-  const em = email.trim().toLowerCase();
-  const passHash = await hash(password);
-  const user = read().users.find((u) => u.email === em && u.passHash === passHash);
-  if (!user) throw new Error('Correo o contraseña incorrectos.');
-  return { id: user.id };
+  const result = await api('/app/auth/login', {
+    method: 'POST',
+    token: '',
+    body: { email: email.trim().toLowerCase(), password },
+  });
+  return { id: result.id, token: result.token };
 }
 
-/* Recuperar contraseña: sin servidor de correo, el código se muestra en pantalla (demo). */
-export function requestReset(email) {
-  const em = email.trim().toLowerCase();
-  return mutate((db) => {
-    if (!db.users.some((u) => u.email === em)) throw new Error('No encontramos una cuenta con ese correo.');
-    const code = String(Math.floor(100000 + Math.random() * 900000));
-    db.resets[em] = { code, exp: Date.now() + 10 * 60000 };
-    return code;
+export async function requestReset(email) {
+  const result = await api('/app/auth/recuperar', {
+    method: 'POST',
+    token: '',
+    body: { email: email.trim().toLowerCase() },
   });
+  return result.codigo || '';
 }
 
 export async function confirmReset({ email, code, password }) {
-  const em = email.trim().toLowerCase();
-  const passHash = await hash(password);
-  return mutate((db) => {
-    const r = db.resets[em];
-    if (!r || r.code !== code.trim()) throw new Error('El código no es correcto.');
-    if (Date.now() > r.exp) throw new Error('El código venció. Pedí uno nuevo.');
-    const user = db.users.find((u) => u.email === em);
-    if (!user) throw new Error('Cuenta inexistente.');
-    user.passHash = passHash;
-    delete db.resets[em];
+  await api('/app/auth/restablecer', {
+    method: 'POST',
+    token: '',
+    body: { email: email.trim().toLowerCase(), codigo: code.trim(), password },
   });
 }
 
-/* ---------- Pacientes (solo cuidador) ---------- */
-export const addPatient = (caregiverId, data) => mutate((db) => {
-  const p = makePatient(db, caregiverId, data);
-  db.patients.push(p);
-  return p.id;
+/* ---------- Pacientes y datos del cuidador ---------- */
+export async function addPatient(_caregiverId, data) {
+  const result = await api('/app/pacientes', { method: 'POST', body: data });
+  await refreshDB();
+  return result.id;
+}
+
+export const updatePatient = (id, patch) => refreshAfter(`/app/pacientes/${encodeURIComponent(id)}`, {
+  method: 'PUT',
+  body: patch,
 });
 
-export const updatePatient = (id, patch) => mutate((db) => {
-  const p = db.patients.find((x) => x.id === id);
-  if (p) Object.assign(p, patch, { updated: todayLabel() });
-});
-
-export const addCondition = (patientId, name) => mutate((db) => {
-  const p = db.patients.find((x) => x.id === patientId);
-  if (!p) throw new Error('No encontramos al paciente.');
+export async function addCondition(patientId, name) {
+  const patient = cache.patients.find((item) => item.id === patientId);
+  if (!patient) throw new Error('No encontramos al paciente.');
   const condition = name.trim();
   if (!condition) throw new Error('Ingresá un diagnóstico o enfermedad.');
-  if (p.conditions.some((x) => x.toLocaleLowerCase() === condition.toLocaleLowerCase())) {
+  if (patient.conditions.some((item) => item.toLocaleLowerCase() === condition.toLocaleLowerCase())) {
     throw new Error('Ese diagnóstico ya está registrado.');
   }
-  p.conditions.push(condition);
-  p.updated = todayLabel();
-});
-
-export const removeCondition = (patientId, condition) => mutate((db) => {
-  const p = db.patients.find((x) => x.id === patientId);
-  if (!p) throw new Error('No encontramos al paciente.');
-  p.conditions = p.conditions.filter((x) => x !== condition);
-  p.updated = todayLabel();
-});
-
-export const removePatient = (id) => mutate((db) => {
-  db.patients = db.patients.filter((p) => p.id !== id);
-  db.requests = db.requests.filter((r) => r.patientId !== id);
-});
-
-export const regenCode = (id) => mutate((db) => {
-  const p = db.patients.find((x) => x.id === id);
-  if (p) p.code = genCode(db);
-});
-
-export const addMedicine = (patientId, med) => mutate((db) => {
-  const p = db.patients.find((x) => x.id === patientId);
-  if (!p) return;
-  p.medicines.push({ id: uid(), color: COLORS[p.medicines.length % COLORS.length], ...med });
-  p.updated = todayLabel();
-});
-
-export const removeMedicine = (patientId, medId) => mutate((db) => {
-  const p = db.patients.find((x) => x.id === patientId);
-  if (!p) return;
-  p.medicines = p.medicines.filter((m) => m.id !== medId);
-  p.updated = todayLabel();
-});
-
-export const addContact = (patientId, contact) => mutate((db) => {
-  const p = db.patients.find((x) => x.id === patientId);
-  if (!p) return;
-  p.contacts.push({ id: uid(), ...contact });
-  p.updated = todayLabel();
-});
-
-export const removeContact = (patientId, contactId) => mutate((db) => {
-  const p = db.patients.find((x) => x.id === patientId);
-  if (!p) return;
-  p.contacts = p.contacts.filter((c) => c.id !== contactId);
-  p.updated = todayLabel();
-});
-
-/* ---------- Tomas (paciente y cuidador) ---------- */
-export const setDose = (patientId, key, taken) => mutate((db) => {
-  const p = db.patients.find((x) => x.id === patientId);
-  if (!p) return;
-  if (taken) p.doses[key] = new Date().toISOString(); else delete p.doses[key];
-});
-
-/* Alarma de prueba: suena en todos los dispositivos conectados al paciente. */
-export const triggerTest = (patientId) => mutate((db) => {
-  const p = db.patients.find((x) => x.id === patientId);
-  if (!p) return;
-  p.tests = [...(p.tests || []).slice(-4), { id: uid(), ts: Date.now(), done: false }];
-});
-export const finishTest = (patientId, testId) => mutate((db) => {
-  const p = db.patients.find((x) => x.id === patientId);
-  const t = p?.tests?.find((x) => x.id === testId);
-  if (t) t.done = true;
-});
-
-/* ---------- Vinculación del paciente por código ---------- */
-export function requestLink({ code, name }) {
-  const wanted = normCode(code);
-  return mutate((db) => {
-    const p = db.patients.find((x) => normCode(x.code) === wanted);
-    if (!wanted || !p) throw new Error('Ese código no existe. Revisalo con tu cuidador.');
-    const req = { id: uid(), patientId: p.id, deviceName: name.trim() || 'Dispositivo', status: 'pending', createdAt: Date.now() };
-    db.requests.push(req);
-    return req.id;
-  });
+  await updatePatient(patientId, { conditions: [...patient.conditions, condition] });
 }
 
-export const respondRequest = (id, accept) => mutate((db) => {
-  const r = db.requests.find((x) => x.id === id);
-  if (r) r.status = accept ? 'accepted' : 'rejected';
-});
+export async function removeCondition(patientId, condition) {
+  const patient = cache.patients.find((item) => item.id === patientId);
+  if (!patient) throw new Error('No encontramos al paciente.');
+  await updatePatient(patientId, { conditions: patient.conditions.filter((item) => item !== condition) });
+}
 
-export const unlinkRequest = (id) => mutate((db) => {
-  db.requests = db.requests.filter((r) => r.id !== id);
-});
+export const removePatient = (id) => refreshAfter(`/app/pacientes/${encodeURIComponent(id)}`, { method: 'DELETE' });
+
+export const regenCode = (id) => refreshAfter(`/app/pacientes/${encodeURIComponent(id)}/regenerar-codigo`, { method: 'POST' });
+
+export const addMedicine = (patientId, medicine) => refreshAfter(
+  `/app/pacientes/${encodeURIComponent(patientId)}/medicamentos`,
+  { method: 'POST', body: { id: uid(), ...medicine } },
+);
+
+export const removeMedicine = (patientId, medicineId) => refreshAfter(
+  `/app/pacientes/${encodeURIComponent(patientId)}/medicamentos/${encodeURIComponent(medicineId)}`,
+  { method: 'DELETE' },
+);
+
+export const addContact = (patientId, contact) => refreshAfter(
+  `/app/pacientes/${encodeURIComponent(patientId)}/contactos`,
+  { method: 'POST', body: { id: uid(), ...contact } },
+);
+
+export const removeContact = (patientId, contactId) => refreshAfter(
+  `/app/pacientes/${encodeURIComponent(patientId)}/contactos/${encodeURIComponent(contactId)}`,
+  { method: 'DELETE' },
+);
+
+/* ---------- Tomas y alarmas ---------- */
+export const setDose = (patientId, key, taken) => refreshAfter(
+  `/app/pacientes/${encodeURIComponent(patientId)}/tomas`,
+  { method: 'PUT', body: { clave: key, tomada: taken } },
+);
+
+export const triggerTest = (patientId) => refreshAfter(
+  `/app/pacientes/${encodeURIComponent(patientId)}/pruebas`,
+  { method: 'POST', body: { id: uid(), ts: Date.now() } },
+);
+
+export const finishTest = (patientId, testId) => refreshAfter(
+  `/app/pacientes/${encodeURIComponent(patientId)}/pruebas/${encodeURIComponent(testId)}`,
+  { method: 'PUT' },
+);
+
+/* ---------- Solicitudes de acceso por código ---------- */
+export async function requestLink({ code, name }) {
+  const result = await api('/app/solicitudes', {
+    method: 'POST',
+    token: '',
+    body: { codigo: code.trim(), nombre: name.trim() || 'Dispositivo' },
+  });
+  return { id: result.id, token: result.token };
+}
+
+export const respondRequest = (id, accept) => refreshAfter(
+  `/app/solicitudes/${encodeURIComponent(id)}/respuesta`,
+  { method: 'POST', body: { aceptar: accept } },
+);
+
+export async function unlinkRequest(id) {
+  const session = loadSession();
+  await api(`/app/solicitudes/${encodeURIComponent(id)}`, { method: 'DELETE' });
+  if (session?.role !== 'patient') await refreshDB();
+}

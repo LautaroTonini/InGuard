@@ -14,7 +14,6 @@ from .database import crear_indices
 from .errors import ApiError
 from .routes import (
     alarma_routes,
-    app_routes,
     auth_routes,
     contacto_routes,
     cuidador_routes,
@@ -22,6 +21,7 @@ from .routes import (
     medicamento_routes,
     paciente_routes,
     sync_routes,
+    web_routes,
 )
 from .services.sync_service import sincronizar
 
@@ -56,7 +56,6 @@ def create_app() -> Flask:
     CORS(app, origins=settings.CORS_ORIGINS)
 
     for modulo in (
-        app_routes,
         auth_routes,
         cuidador_routes,
         paciente_routes,
@@ -65,6 +64,7 @@ def create_app() -> Flask:
         contacto_routes,
         emergencia_routes,
         sync_routes,
+        web_routes,
     ):
         app.register_blueprint(modulo.bp)
 

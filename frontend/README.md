@@ -5,6 +5,15 @@ Prototipo frontend de **InGuard**: cuidado conectado entre cuidadores y paciente
 ## Ejecutar
 ```bash
 npm install
+```
+
+Configurar la URL del backend en `frontend/.env.local` si no está en `http://localhost:5000`:
+```env
+VITE_API_URL=http://localhost:5000
+```
+
+Iniciar el backend según las instrucciones de `../backend/README.md`. Después:
+```bash
 npm run dev
 ```
 Abrí la URL de Vite (normalmente `http://localhost:5173`). Build de producción: `npm run build && npm run preview`.
@@ -35,10 +44,10 @@ Abrí la URL de Vite (normalmente `http://localhost:5173`). Build de producción
 4. En Medicación tocá **Probar alarma**: suena en ambas pestañas.
 
 ## Alcance de la demo
-- Los datos se guardan en `localStorage` y se sincronizan entre pestañas del **mismo navegador**. Para conectar dispositivos distintos hace falta un backend (Firebase, Supabase o Node + WebSocket): todo el acceso a datos está aislado en `src/store.js`, así que solo hay que reemplazar ese archivo.
-- El envío del informe a emergencias es solo demostrativo: no se transmiten datos. La integración real queda pendiente del backend; el informe puede imprimirse o guardarse como PDF desde el navegador.
-- La recuperación de contraseña muestra el código en pantalla porque no hay servidor de correo.
-- Las contraseñas se guardan con hash SHA-256 solo para la demo; en producción corresponde un hash con sal en el servidor.
+- La autenticación y los datos se consultan y guardan mediante la API Flask del proyecto (`/app/*`), con token por sesión. La URL se configura con `VITE_API_URL`; el backend requiere MongoDB. El panel actualiza su snapshot cada 5 segundos para reflejar cambios entre dispositivos.
+- El botón de envío del informe a emergencias sigue en modo demostración: no se transmiten datos. El informe puede imprimirse o guardarse como PDF desde el navegador.
+- La recuperación de contraseña muestra el código en pantalla cuando el backend está en modo demo (`RESET_DEMO=true`).
+- Las contraseñas se validan y almacenan únicamente en el backend usando bcrypt.
 - Las alarmas suenan con la pestaña abierta y después de haber interactuado con la página (restricción de los navegadores). Para avisos con la app cerrada se necesitan notificaciones push.
 - Datos y teléfonos ficticios. No usar para decisiones médicas reales.
 
@@ -50,7 +59,7 @@ Abrí la URL de Vite (normalmente `http://localhost:5173`). Build de producción
     ├── main.jsx       # enrutado por sesión (cuidador / paciente / espera de aprobación)
     ├── Auth.jsx       # login, registro, recuperar contraseña, ingreso por código
     ├── Workspace.jsx  # panel de cuidador y de paciente + overlay de alarma
-    ├── store.js       # datos, sesión y sincronización (reemplazable por backend)
+    ├── store.js       # cliente API, sesión y snapshot del servidor
     ├── alarm.js       # lógica y sonido de alarmas
     ├── ui.jsx         # Logo, Switch, campos y modal de formularios
     └── styles.css     # estilos originales + nuevos

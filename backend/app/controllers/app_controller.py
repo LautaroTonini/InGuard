@@ -24,7 +24,7 @@ from ..models.solicitud import Solicitud
 from ..models.toma import Toma
 from ..models.usuario import Usuario
 from ..permisos import verificar_acceso_paciente
-from ..security import crear_token, hash_password
+from ..security import crear_token, hash_password, verificar_password
 
 ALFABETO = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"  # sin 0/O/1/I para evitar confusiones
 COLORES = ["blue", "violet", "orange"]
@@ -160,6 +160,13 @@ def registrar_cuidador(data) -> dict:
     if data.paciente_ejemplo:
         _paciente_de_ejemplo(user)
     return {"id": user["_id"], "token": crear_token(user["_id"], "cuidador")}
+
+
+def login_web(data) -> dict:
+    usuario = Usuario.buscar_por_email(data.email.lower())
+    if not usuario or usuario["rol"] != "cuidador" or not verificar_password(data.password, usuario["password_hash"]):
+        raise ApiError(401, "Correo o contraseña incorrectos.")
+    return {"id": usuario["_id"], "token": crear_token(usuario["_id"], "cuidador")}
 
 
 def _paciente_de_ejemplo(cuidador: dict) -> None:

@@ -38,9 +38,13 @@ export function PasswordField({ label, ...props }) {
 export function FormModal({ title, subtitle, fields, initial = {}, submitLabel = 'Guardar', onSubmit, onClose }) {
   const [values, setValues] = useState(() => Object.fromEntries(fields.map((f) => [f.name, initial[f.name] ?? ''])));
   const [error, setError] = useState('');
-  const submit = (e) => {
+  const [busy, setBusy] = useState(false);
+  const submit = async (e) => {
     e.preventDefault();
-    try { onSubmit(values); onClose(); } catch (err) { setError(err.message); }
+    setError('');
+    setBusy(true);
+    try { await onSubmit(values); onClose(); } catch (err) { setError(err.message); }
+    finally { setBusy(false); }
   };
   return <div className="modal-backdrop" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
     <form className="modal" onSubmit={submit}>
@@ -54,8 +58,8 @@ export function FormModal({ title, subtitle, fields, initial = {}, submitLabel =
       </div>
       {error && <div className="form-error">{error}</div>}
       <div className="modal-actions">
-        <button type="button" className="secondary-button" onClick={onClose}>Cancelar</button>
-        <button type="submit" className="primary-button">{submitLabel}</button>
+        <button type="button" className="secondary-button" onClick={onClose} disabled={busy}>Cancelar</button>
+        <button type="submit" className="primary-button" disabled={busy}>{busy ? 'Guardando…' : submitLabel}</button>
       </div>
     </form>
   </div>;
