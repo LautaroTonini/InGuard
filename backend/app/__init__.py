@@ -156,7 +156,6 @@ def create_app() -> Flask:
         logger.warning(
             "No se pudieron crear los indices (revisar MONGO_LOCAL_URI / acceso a Atlas)"
         )
-
     # con el reloader de debug Flask arranca 2 procesos: solo uno debe sincronizar
     es_proceso_principal = (not app.debug) or os.environ.get("WERKZEUG_RUN_MAIN") == "true"
     if settings.SYNC_AUTOMATICA and es_proceso_principal:
