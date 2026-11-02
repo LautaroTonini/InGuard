@@ -223,8 +223,6 @@ Documentación interactiva de la API: **`/docs`** (Swagger / Flasgger).
 <img width="975" height="439" alt="WhatsApp Image 2026-11-02 at 00 19 38" src="https://github.com/user-attachments/assets/5f505bd4-7f65-484e-bd23-21f2df9421e5" />
 <img width="680" height="528" alt="WhatsApp Image 2026-11-02 at 00 16 31" src="https://github.com/user-attachments/assets/30c348eb-6a0c-485d-a705-90e172a601d6" />
 
-A partir de las capturas de tráfico de red y JSON del sistema InGuard (`/users/` y `/patients/`) y la estructura actual del proyecto en el `README.md`, se identificaron los siguientes puntos críticos, sus causas y las soluciones recomendadas para la documentación:
-
 ### 1. Exposición de Datos Sensibles en Texto Plano (HTTP sin TLS)
 
 * **Error / Vulnerabilidad:** El tráfico capturado mediante Wireshark muestra que las peticiones de autenticación (`POST /auth/login`) y la consulta de colecciones (`/users/`, `/patients/`) viajan en texto plano a través del puerto HTTP (5000).
