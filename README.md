@@ -268,7 +268,7 @@ A partir de las capturas de tráfico de red y JSON del sistema InGuard (`/users/
 | Integrante | Área | Contribuciones principales |
 |------------|------|----------------------------|
 | **[Fabrizio Rossato]** | Backend |  Alarmas, patrón Observer, documentación de seguridad, modelos/Repository |
-| **[Lautaro Tonini]** | Backend |API Flask,  tests backend, sincronización, Swagger, rate limit, tests backend|
+| **[Lautaro Tonini]** | Backend |API Flask,  tests backend, sincronización, Swagger, rate limit, tests frontend|
 | **[Adriano Oyola]** | Frontend | Login, rutas protegidas, layout responsive, integración con la API |
 | **[Grego Bizzotto]** | Frontend | Vistas de pacientes/medicamentos/alarmas, componentes reutilizables, pruebas frontend |
 
