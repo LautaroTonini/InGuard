@@ -30,7 +30,7 @@ function CaregiverAccess({ onSession }) {
         const u = await registerCaregiver(f);
         onSession({ role: 'caregiver', userId: u.id, token: u.token });
       } else if (step === 1) {
-        setDemoCode(requestReset(f.email));
+        setDemoCode(await requestReset(f.email));
         setStep(2);
       } else {
         if (f.password.length < 6) throw new Error('La contraseña debe tener al menos 6 caracteres.');
