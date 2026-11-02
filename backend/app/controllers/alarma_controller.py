@@ -1,8 +1,5 @@
 from ..errors import ApiError
-<<<<<<< HEAD
-=======
 from ..observers import alarma_subject
->>>>>>> e67987221d35c0821a9155150c93fae8ff81cb90
 from ..models.alarma import Alarma
 from ..models.medicamento import Medicamento
 from ..observers import alarma_subject
