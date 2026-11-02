@@ -21,7 +21,16 @@ class Settings:
 
     SYNC_AUTOMATICA = os.getenv("SYNC_AUTOMATICA", "true").lower() == "true"
     SYNC_INTERVALO_SEG = int(os.getenv("SYNC_INTERVALO_SEG", "30"))
-    CORS_ORIGINS = [o.strip() for o in os.getenv("CORS_ORIGINS", "*").split(",")]
+    # CORS restrictivo por defecto (solo frontend local). En produccion usar dominios reales.
+    CORS_ORIGINS = [
+        o.strip()
+        for o in os.getenv("CORS_ORIGINS", "http://localhost:5173,http://127.0.0.1:5173").split(",")
+        if o.strip()
+    ]
 
+    # Protección contra fuerza bruta en login
+    LOGIN_MAX_INTENTOS = int(os.getenv("LOGIN_MAX_INTENTOS", "5"))
+    LOGIN_VENTANA_MIN = int(os.getenv("LOGIN_VENTANA_MIN", "15"))   # ventana de conteo
+    LOGIN_BLOQUEO_MIN = int(os.getenv("LOGIN_BLOQUEO_MIN", "15"))   # duración del bloqueo
 
 settings = Settings()

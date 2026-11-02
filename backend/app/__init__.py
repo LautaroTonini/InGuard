@@ -14,7 +14,6 @@ from .database import crear_indices
 from .errors import ApiError
 from .routes import (
     alarma_routes,
-    app_routes,
     auth_routes,
     contacto_routes,
     cuidador_routes,
@@ -26,6 +25,15 @@ from .routes import (
 from .services.sync_service import sincronizar
 
 logger = logging.getLogger("inguard")
+
+
+def _configurar_logging():
+    """Logging básico: no registra contraseñas, tokens ni datos clínicos innecesarios."""
+    if not logging.getLogger().handlers:
+        logging.basicConfig(
+            level=logging.INFO,
+            format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+        )
 
 
 class JSONProviderISO(DefaultJSONProvider):
@@ -51,12 +59,56 @@ def _iniciar_sync_automatica():
 
 
 def create_app() -> Flask:
+    
+    _configurar_logging()
+
     app = Flask(__name__)
     app.json = JSONProviderISO(app)
-    CORS(app, origins=settings.CORS_ORIGINS)
+    CORS(app, origins=settings.CORS_ORIGINS, supports_credentials=True)
+
+    # ---- Swagger / OpenAPI (Flasgger) ----
+    try:
+        from flasgger import Swagger
+
+        swagger_config = {
+            "headers": [],
+            "specs": [
+                {
+                    "endpoint": "apispec",
+                    "route": "/apispec.json",
+                    "rule_filter": lambda rule: True,
+                    "model_filter": lambda tag: True,
+                }
+            ],
+            "static_url_path": "/flasgger_static",
+            "swagger_ui": True,
+            "specs_route": "/docs",
+        }
+        swagger_template = {
+            "info": {
+                "title": "InGuard API",
+                "description": (
+                    "API de gestión de cuidados (pacientes, cuidadores, "
+                    "medicamentos, alarmas y contactos de emergencia). "
+                    "Autenticación JWT Bearer."
+                ),
+                "version": "1.0.0",
+            },
+            "securityDefinitions": {
+                "Bearer": {
+                    "type": "apiKey",
+                    "name": "Authorization",
+                    "in": "header",
+                    "description": "JWT: Bearer <token>",
+                }
+            },
+        }
+        Swagger(app, config=swagger_config, template=swagger_template)
+    except ImportError:
+        logger.warning("flasgger no instalado: /docs no estará disponible (pip install flasgger)")
+
 
     for modulo in (
-        app_routes,
         auth_routes,
         cuidador_routes,
         paciente_routes,
@@ -94,8 +146,9 @@ def create_app() -> Flask:
     try:
         crear_indices()
     except Exception:
-        logger.warning("No se pudieron crear los indices (revisar MONGO_LOCAL_URI / acceso a Atlas)")
-
+        logger.warning(
+            "No se pudieron crear los indices (revisar MONGO_LOCAL_URI / acceso a Atlas)"
+        )
     # con el reloader de debug Flask arranca 2 procesos: solo uno debe sincronizar
     es_proceso_principal = (not app.debug) or os.environ.get("WERKZEUG_RUN_MAIN") == "true"
     if settings.SYNC_AUTOMATICA and es_proceso_principal:

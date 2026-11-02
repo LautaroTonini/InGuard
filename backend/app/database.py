@@ -69,3 +69,7 @@ def crear_indices():
         db[col].create_index([("paciente_id", ASCENDING)])
     for col in ("usuarios", "medicamentos", "alarmas", "contactos_emergencia", "solicitudes", "tomas", "pruebas_alarma"):
         db[col].create_index([("sync_pendiente", ASCENDING)])
+
+    # Intentos de login (protección fuerza bruta)
+    db["login_attempts"].create_index([("email", ASCENDING)], unique=True)
+    db["login_attempts"].create_index([("bloqueado_hasta", ASCENDING)])
