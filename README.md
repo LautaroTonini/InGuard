@@ -2,6 +2,8 @@
 
 Aplicación de cuidado conectado con frontend React, API Flask y MongoDB.
 
+**Backend:** Flask + MongoDB (offline-first), JWT, bcrypt, protección contra fuerza bruta, patrones Factory / Repository / Observer, Swagger en `/docs` y pruebas con pytest.
+
 ## Cómo levantar la app (Windows)
 
 Necesitás **Python**, **Node.js/npm** y MongoDB instalado y en ejecución, o una URI de MongoDB Atlas.
@@ -17,13 +19,22 @@ python -m venv venv
 pip install -r requirements.txt
 ```
 
-Si MongoDB no está en `mongodb://localhost:27017`, creá `backend/.env` y configurá `MONGO_LOCAL_URI` con la URI correspondiente. Para desarrollo, definí también un `JWT_SECRET` propio. Luego iniciá el servidor:
+Creá `backend/.env` (opcional pero recomendado):
+
+```env
+JWT_SECRET=un-secreto-largo-y-aleatorio
+MONGO_LOCAL_URI=mongodb://localhost:27017
+CORS_ORIGINS=http://localhost:5173,http://127.0.0.1:5173
+```
+
+Luego iniciá el servidor:
 
 ```powershell
 python run.py
 ```
 
-La API queda disponible en `http://localhost:5000`. Dejá esta terminal abierta.
+La API queda en `http://localhost:5000`. Documentación Swagger: `http://localhost:5000/docs`.  
+Dejá esta terminal abierta.
 
 ### 2. Levantar el frontend
 
@@ -35,16 +46,29 @@ npm install
 npm run dev
 ```
 
-Abrí la dirección que muestra Vite, normalmente `http://localhost:5173`. El frontend usa por defecto la API en `http://localhost:5000`. Si está en otra dirección, creá `frontend/.env.local` con:
+Abrí la dirección que muestra Vite, normalmente `http://localhost:5173`.  
+Si la API está en otra URL, creá `frontend/.env.local` con:
 
 ```env
 VITE_API_URL=http://localhost:5000
 ```
 
-Reiniciá Vite si modificás ese archivo. Para cambiar el origen permitido por el backend, configurá `CORS_ORIGINS` en `backend/.env` (por defecto acepta todos los orígenes en desarrollo).
+El origen del navegador (normalmente `http://localhost:5173`) debe estar incluido en `CORS_ORIGINS` del backend. Podés copiar `frontend/.env.example` como `frontend/.env.local` y reiniciar Vite después de cambiar la URL.
 
 ### 3. Probar
 
-Registrate como cuidador: se crea un paciente de ejemplo y podés usar su código para solicitar acceso desde otra pestaña o dispositivo. Aceptá la solicitud en **Mis pacientes**.
+- Registrate como paciente y como cuidador.
+- Vinculá con el código de vinculación.
+- Creá medicamentos y alarmas.
+- Probá el límite de intentos de login (varios fallos → HTTP 429).
 
-Para más detalles, consultá [README del backend](./backend/README.md) y [README del frontend](./frontend/README.md).
+### 4. Tests del backend
+
+```powershell
+cd backend
+.\venv\Scripts\Activate.ps1
+pytest
+```
+
+Para más detalles (patrones de diseño, seguridad, roles, Wireshark, estructura MVC):  
+→ [README del backend](./backend/README.md)

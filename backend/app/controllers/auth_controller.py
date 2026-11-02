@@ -1,9 +1,11 @@
 import secrets
 import string
 
-from ..errors import ApiError
+from flask import request
 
+from ..errors import ApiError
 from ..models.usuario import Usuario
+from ..rate_limit import limpiar_intentos, registrar_intento_fallido, verificar_no_bloqueado
 from ..schemas import LoginIn, RegistroIn
 from ..security import crear_token, hash_password, verificar_password
 from ..views import serializar_usuario
@@ -42,9 +44,20 @@ def registrar(data: RegistroIn) -> dict:
 
 
 def login(data: LoginIn) -> dict:
-    usuario = Usuario.buscar_por_email(data.email.lower())
+    email = data.email.lower()
+    ip = request.headers.get("X-Forwarded-For", request.remote_addr)
+
+    # Protección contra fuerza bruta
+    verificar_no_bloqueado(email)
+
+    usuario = Usuario.buscar_por_email(email)
     if not usuario or not verificar_password(data.password, usuario["password_hash"]):
+        registrar_intento_fallido(email, ip)
         raise ApiError(401, "Credenciales invalidas")
+
+    # Login exitoso → limpiar contador
+    limpiar_intentos(email)
+
     return {
         "access_token": crear_token(usuario["_id"], usuario["rol"]),
         "token_type": "bearer",

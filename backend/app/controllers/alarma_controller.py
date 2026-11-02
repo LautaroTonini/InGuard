@@ -1,7 +1,7 @@
 from ..errors import ApiError
-
 from ..models.alarma import Alarma
 from ..models.medicamento import Medicamento
+from ..observers import alarma_subject
 from ..permisos import verificar_acceso_paciente
 from ..schemas import AlarmaIn, AlarmaUpdateIn
 from ..views import serializar, serializar_lista
@@ -29,6 +29,8 @@ def crear(usuario: dict, medicamento_id: str, data: AlarmaIn) -> dict:
             "creado_por": usuario["_id"],
         }
     )
+    # Patrón Observer: notificar a los suscriptores (logging, sync, etc.)
+    alarma_subject.notificar_creacion(alarma, contexto={"usuario_id": usuario["_id"]})
     return serializar(alarma)
 
 
@@ -44,9 +46,14 @@ def actualizar(usuario: dict, alarma_id: str, data: AlarmaUpdateIn) -> dict:
         raise ApiError(400, "No se enviaron cambios")
     if "dias_semana" in cambios:
         cambios["dias_semana"] = sorted(set(cambios["dias_semana"]))
-    return serializar(Alarma.update(alarma_id, cambios))
+    actualizada = Alarma.update(alarma_id, cambios)
+    alarma_subject.notificar_actualizacion(
+        actualizada, cambios, contexto={"usuario_id": usuario["_id"]}
+    )
+    return serializar(actualizada)
 
 
 def eliminar(usuario: dict, alarma_id: str) -> None:
-    _alarma_con_acceso(usuario, alarma_id)
+    alarma = _alarma_con_acceso(usuario, alarma_id)
     Alarma.delete(alarma_id)
+    alarma_subject.notificar_eliminacion(alarma, contexto={"usuario_id": usuario["_id"]})
